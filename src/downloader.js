@@ -6,20 +6,65 @@ const _url = (url, bit) => url.replace(/https:\/\/.*.com(.*)/, (a, b) => {
 	if (bit) return `${proxy}/song${b}`.replace(/(.*)_\d{2,3}.mp4/, bit == 128 ? `$1.mp3` : `$1_${bit}.mp3`)
 	else return `${proxy}/image${b}`
 })
-
-// Get songs data
+const _c = str => str[0].toUpperCase() + str.slice(1)
+const _json = (R) => JSON.parse(JSON.stringify(R).replace(/&amp/gi, "&").replace(/&copy/gi, "©").replace(/150x150/gi, "500x500").replace(/http:\/\//gi, 'https://').replace(/&#039\;|&quot\;/g, "'"))
+const _song = (d, type, i = false) => {
+	if (type === 'song') {
+		const { id, image, label, year, ...s } = d.songs ? d.songs[0] : d
+		const url = s.media_preview_url?.replace(/(.*)preview.saavncdn(.*)_96_p.mp4/, '$1aac.saavncdn$2_96.mp4')
+		let array = {
+			id, image, label, year, url, type,
+			title: _c(s.song),
+			album: _c(s.album),
+			artists_p: _c(s.primary_artists),
+			artists: s.singers,
+			language: 'Soundtrack',
+			token: s.perma_url?.replace(/.*\/(.*)/, '$1'),
+			hd: s["320kbps"] === "true",
+			dolby: s["is_dolby_content"],
+		}
+		if (i) array.track = i
+		if (s.disabled && s.disabled == 'true') array.disabled = s.disabled
+		if (s.language && s.language !== "unknown") array.language = _c(s.language)
+		return array
+	} else {
+		let songs = []
+		d.songs.forEach((s, i) => [...songs, _song(s, 'song', ++i)])
+		return ({
+			type, songs, image: d.image,
+			token: d.perma_url?.replace(/.*\/(.*)/, '$1'),
+			id: d.albumid || d.listid,
+			title: d.title || d.listname,
+		})
+	}
+}
+/**
+ * Get Song data
+ * @param {HTMLElement} button 
+ * @param {'song'|'album'|'playlist'} type 
+ * @param {string} token 
+ * @param {function|null} callback 
+ * @returns Object | null
+ */
 const getSongsData = (button, type, token, callback = () => { }) => {
 	// button.find('i.o-icon--large').removeClass('o-icon-download').addClass('o-icon-download-progress')
 	let result = false, data = { type, token }
 	// Call to saavn server
 	$.ajax({
-		url: `${proxy}/info`, dataType: "json", data, success: (res) => result = res
+		url: 'https://www.jiosaavn.com/api.php?__call=webapi.get&ctx=wap6dot0&n=-1&_format=json&_marker=0&api_version=3',
+		dataType: "json", data, success: (res) => result = _json(_song(res, type))
 	}).always(() => {
 		console.log('songs =>', result)
 		callback(result)
 	})
 }
-// get Array Buffer from url
+/**
+ * Get Array Buffer from url
+ * @param {string} url 
+ * @param {function | null} onLoad 
+ * @param {function | null} onProgress 
+ * @param {function | null} onError 
+ */
 const getURLArrayBuffer = (url, onLoad = () => { }, onProgress = () => { }, onError = () => { }) => {
 	const xhr = new XMLHttpRequest()
 	xhr.open('GET', url, true)
@@ -35,8 +80,15 @@ const getURLArrayBuffer = (url, onLoad = () => { }, onProgress = () => { }, onEr
 	xhr.onerror = () => onError()
 	xhr.send()
 }
-// Get Async Downloaded blob of the a Single Song
+/**
+ * Get Async Downloaded blob of the a Single Song
+ * @param {object} song 
+ * @param {function | null} onSuccess 
+ * @param {function |null} onError 
+ * @returns blob
+ */
 const getSongBlob = async (song, onSuccess = () => { }, onError = () => { }) => {
+	if (song.disabled === true) return onError()
 	// Get bitrate
 	let bitrate = parseInt(localStorage.bitrate),
 		bitArray = [16, 32, 64, 128, 192, 320];
@@ -66,17 +118,20 @@ const getSongBlob = async (song, onSuccess = () => { }, onError = () => { }) => 
 			},
 			(value) => showProgress(song.title, song.id, value),
 			() => {
-				if (bitrate <= 64 && b > 0) return reBuffer(++b)
-				else if (b < bitArray.length) return reBuffer(--b)
+				if (bitrate <= 64 && ++b < bitArray.length) return reBuffer(b)
+				else if (--b > 0) return reBuffer(b)
 				onError()
 			}
 		)
 	}
 	reBuffer(bitArray.indexOf(bitrate))
 }
-//#endregion
-
-//#region //* Download a Single song with ID3 Meta Data (Song Album art and Artists)
+/**
+ * Download a Single song with ID3 Meta Data
+ * @param {array} song 
+ * @param {function | null} onSuccess 
+ * @param {function | null} onError 
+ */
 const downloadWithData = (song, onSuccess = () => { }, onError = () => { }) => {
 	getSongBlob(
 		song,
@@ -87,9 +142,13 @@ const downloadWithData = (song, onSuccess = () => { }, onError = () => { }) => {
 		() => onError()
 	)
 }
-//#endregion
-
-//#region //* Download Set of Songs as a Zip
+/**
+ * Download Set of Songs as a Zip
+ * @param {array} list 
+ * @param {function} onSuccess 
+ * @param {function} onError 
+ *  
+ */
 const downloadSongsAsZip = function (list, onSuccess = () => { }, onError = () => { }) {
 	const { title, songs, image } = list, n = songs.length
 	if (n === 0) return onError()
@@ -98,7 +157,7 @@ const downloadSongsAsZip = function (list, onSuccess = () => { }, onError = () =
 	var a = 0, b = 0, err = {}
 	// Download cover image for albums
 	if (list.type == 'playlist' && image.includes('c.saavncdn.com')) {
-		getURLArrayBuffer(_u(cover), (image) => zip.file(`_cover_.jpg`, image))
+		getURLArrayBuffer(_url(image), (image) => zip.file(`_cover_.jpg`, image))
 	}
 	const count = () => $('#download-bar label').attr({ 'data-a': a, 'data-c': n })
 	count()
@@ -123,9 +182,12 @@ const downloadSongsAsZip = function (list, onSuccess = () => { }, onError = () =
 	}, 500)
 	download
 }
-//#endregion
-
-//#region //* Show Progress
+/**
+ * Show Progress
+ * @param {string} name 
+ * @param {string | number} id 
+ * @param {number | boolean} value 
+ */
 const showProgress = (name, id, value) => {
 	const bar = $('#download-bar')
 	if (bar.find(`#${id}`).length == 0) {
@@ -134,10 +196,9 @@ const showProgress = (name, id, value) => {
 	}
 	const progress = $(`#download-bar #${id}`)
 	progress.css("--p", value)
-	bar.addClass('active')
-	if (!value) {
+	if (value) bar.addClass('active')
+	else {
 		progress.addClass('done hide')
 		setTimeout(() => { progress.remove() }, 3250)
 	}
 }
-//#endregion

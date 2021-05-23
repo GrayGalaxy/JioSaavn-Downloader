@@ -114,7 +114,10 @@ var hideAds = () => {
 	const ads = ['.ad', '.c-promo', '.c-ad', '.c-banner', '.c-player__ad']
 	ads.forEach(el => { if (el) $(el).remove() })
 }
-//Toast Alert
+/**
+ * Toast Alert
+ * @param {String} message 
+ */
 const toast = (message) => {
 	if (!message) return
 	// create container
