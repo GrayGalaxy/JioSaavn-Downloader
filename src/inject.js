@@ -25,7 +25,7 @@ const add_song_download_btn = () => {
 				downloadWithData(
 					result,
 					() => _done(icon),
-					() => _done(icon, 'Song')
+					(e) => _done(icon, e && 'Song')
 				)
 			})
 		})
@@ -58,7 +58,7 @@ const add_list_download_btn = () => {
 			downloadSongsAsZip(
 				res,
 				(err) => _done(icon, false, 'Compressing & Zipping the Downloads', err),
-				(err) => _done(icon, type, false, err)
+				(err) => _done(icon, _c(type), false, err)
 			)
 		})
 	})
@@ -149,14 +149,13 @@ $(document).ready(() => {
 	toast('Plugin is active and Functional')
 	// hide download bar if no current downloads
 	setInterval(() => {
-		if ($('#download-bar .body-scroll').children().length == 0) $('#download-bar').removeClass('active')
+		if ($('#download-bar .body-scroll').children().length == 0)
+			$('#download-bar').removeClass('active').find('label').removeAttr('data-c')
 	}, 2000)
 	// check if classes of the .page-wrap changes then add the buttons again
 	var a = 0, b, p = window.location.href, q
 	// detect changes
 	setInterval(() => {
-		if ($('#download-bar .body-scroll').children().length == 0)
-			$('#download-bar').removeClass('active').find('label').removeAttr('data-c')
 		b = $('ol.o-list-bare').find('li').length || 0
 		q = window.location.href
 		if (b !== a) { initPlugin(); a = b }

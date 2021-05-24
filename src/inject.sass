@@ -4,6 +4,7 @@
 
 .c-toast
 	pointer-events: none
+	z-index: 3 !important
 	&__msg
 		pointer-events: auto
 		box-shadow: 0 0 12px 4px rgba(0,0, 0, .05)
@@ -36,7 +37,7 @@
 
 #download-bar
 	position: fixed
-	z-index: 3
+	z-index: 4
 	bottom: 6.5em
 	left: 1em
 	background-color: #fff
@@ -161,6 +162,10 @@
 		align-items: center
 	p
 		margin: 0
+	.u-link
+		margin-left: auto
+		padding-left: 8px
+		font-size: .75em
 	svg
 		height: 24px
 		margin-right: 5px

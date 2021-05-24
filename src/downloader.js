@@ -29,7 +29,8 @@ const _song = (d, type, i = false) => {
 		return array
 	} else {
 		let songs = []
-		d.songs.forEach((s, i) => [...songs, _song(s, 'song', ++i)])
+		d.songs.forEach((s, i) => songs.push(_song(s, 'song', ++i)))
+		console.log(d.songs);
 		return ({
 			type, songs, image: d.image,
 			token: d.perma_url?.replace(/.*\/(.*)/, '$1'),
@@ -69,15 +70,13 @@ const getURLArrayBuffer = (url, onLoad = () => { }, onProgress = () => { }, onEr
 	const xhr = new XMLHttpRequest()
 	xhr.open('GET', url, true)
 	xhr.responseType = 'arraybuffer'
-	xhr.onprogress = e => {
-		const progress = e.loaded / e.total
-		onProgress(progress < 1 ? progress : false)
-	}
+	xhr.onprogress = e => onProgress(e)
 	xhr.onload = () => {
 		if (xhr.status === 200) onLoad(xhr.response)
-		else { onProgress(false); onError() }
+		else { onProgress(false); onError(true) }
 	}
-	xhr.onerror = () => onError()
+	xhr.onabort = () => onError(false)
+	xhr.onerror = () => onError(true)
 	xhr.send()
 }
 /**
@@ -117,10 +116,10 @@ const getSongBlob = async (song, onSuccess = () => { }, onError = () => { }) => 
 				onSuccess(blob)
 			},
 			(value) => showProgress(song.title, song.id, value),
-			() => {
-				if (bitrate <= 64 && ++b < bitArray.length) return reBuffer(b)
-				else if (--b > 0) return reBuffer(b)
-				onError()
+			(e) => {
+				if (e && bitrate <= 64 && ++b < bitArray.length) return reBuffer(b)
+				else if (e && --b > 0) return reBuffer(b)
+				onError(e)
 			}
 		)
 	}
@@ -139,7 +138,7 @@ const downloadWithData = (song, onSuccess = () => { }, onError = () => { }) => {
 			saveAs(blob, `${_file(song.title)}.mp3`)
 			onSuccess()
 		},
-		() => onError()
+		(e) => onError(e)
 	)
 }
 /**
@@ -180,7 +179,6 @@ const downloadSongsAsZip = function (list, onSuccess = () => { }, onError = () =
 		}, 1000);
 		clearInterval(download)
 	}, 500)
-	download
 }
 /**
  * Show Progress
@@ -188,17 +186,26 @@ const downloadSongsAsZip = function (list, onSuccess = () => { }, onError = () =
  * @param {string | number} id 
  * @param {number | boolean} value 
  */
-const showProgress = (name, id, value) => {
+const showProgress = (name, id, p) => {
+	const value = (p.loaded / p.total) || null
 	const bar = $('#download-bar')
 	if (bar.find(`#${id}`).length == 0) {
-		const wrapper = $(`<div id="${id}" class="download-wrapper" style="--p:0.15"><div class="wrap"><svg class="progress" viewbox="0 0 24 24"><circle cx="12" cy="12" r="11"/><circle cx="12" cy="12" r="11"/><path d="M1.73,12.91 8.1,19.28 22.79,4.59"/></svg><p class="u-centi u-ellipsis u-color-js-gray-alt-light">${name}</p></div></div>`)
+		const wrapper = $(`<div id="${id}" class="download-wrapper" style="--p:0.15"><div class="wrap"><svg class="progress" viewbox="0 0 24 24"><circle cx="12" cy="12" r="11"/><circle cx="12" cy="12" r="11"/><path d="M1.73,12.91 8.1,19.28 22.79,4.59"/></svg><p class="u-centi u-ellipsis u-color-js-gray-alt-light">${name}</p><span class="u-link"><i class="o-icon--large o-icon-close"></i></span></div></div>`)
 		bar.find('.body-scroll').append(wrapper)
 	}
 	const progress = $(`#download-bar #${id}`)
+	const abort = progress.find('.u-link')
 	progress.css("--p", value)
-	if (value) bar.addClass('active')
-	else {
-		progress.addClass('done hide')
+	// Close
+	const close = (done) => {
+		progress.addClass('hide')
+		if (done) progress.addClass('done')
 		setTimeout(() => { progress.remove() }, 3250)
 	}
+	if (value && value < 1) bar.addClass('active')
+	else close(true)
+	// Abort
+	abort.click(() => {
+		p.currentTarget.abort(); close()
+	})
 }
